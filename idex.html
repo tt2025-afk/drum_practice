@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>KKBOX 練團室 (全能版)</title>
+    <style>
+        :root {
+            --kk-blue: #00a0e9;
+            --bg: #121212;
+            --panel: #222;
+            --text: #fff;
+            --accent: #00d2d3;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            touch-action: manipulation; 
+        }
+
+        /* 1. 搜歌區 */
+        .search-box {
+            width: 100%;
+            background: #333;
+            padding: 10px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+            display: flex;
+            gap: 5px;
+            box-sizing: border-box;
+        }
+        input[type="text"] {
+            flex: 1;
+            padding: 10px;
+            border-radius: 5px;
+            border: 1px solid #555;
+            background: #111;
+            color: white;
+            font-size: 16px;
+        }
+        .btn-load {
+            background: var(--kk-blue);
+            color: white;
+            border: none;
+            padding: 0 15px;
+            border-radius: 5px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        /* 2. KKBOX 區塊 */
+        .kkbox-container {
+            width: 100%;
+            margin-bottom: 15px;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            background: #000;
+            min-height: 250px;
+        }
+
+        /* 3. 節拍器面板 */
+        .metro-panel {
+            width: 100%;
+            background: var(--panel);
+            padding: 20px;
+            border-radius: 15px;
+            box-sizing: border-box;
+            border-top: 3px solid var(--accent);
+        }
+
+        /* LED 燈 */
+        .leds { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; height: 20px; }
+        .led { width: 20px; height: 20px; border-radius: 50%; background: #444; transition: 0.1s; }
+        .led.high { background: #ff4757; box-shadow: 0 0 15px #ff4757; transform: scale(1.2); }
+        .led.low { background: #2ed573; box-shadow: 0 0 15px #2ed573; }
+
+        /* BPM 顯示 */
+        .bpm-display { text-align: center; font-size: 4rem; font-weight: 800; color: var(--text); line-height: 1; margin-bottom: 10px; }
+        .bpm-sub { font-size: 1rem; color: var(--accent); text-align: center; margin-bottom: 20px; }
+
+        /* 滑桿與按鈕 */
+        input[type=range] { width: 100%; height: 40px; margin: 10px 0; }
+        
+        .control-row { display: flex; gap: 10px; margin-bottom: 15px; }
+        select { flex: 1; padding: 12px; font-size: 1rem; background: #333; color: white; border: 1px solid #555; border-radius: 8px; }
+
+        .big-btn {
+            width: 100%; padding: 20px; font-size: 1.5rem; font-weight: bold;
+            border: none; border-radius: 12px; background: #444; color: #ccc;
+            transition: 0.2s; touch-action: manipulation;
+        }
+        .big-btn.active { background: var(--kk-blue); color: white; box-shadow: 0 5px 20px rgba(0, 160, 233, 0.5); }
+
+        .hint { font-size: 0.8rem; color: #777; text-align: center; margin-top: 20px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+
+    <div class="search-box">
+        <input type="text" id="kkLink" placeholder="貼上 play.kkbox.com 連結..." value="https://play.kkbox.com/track/SomsQ-0s1DbhbJT2AH">
+        <button class="btn-load" onclick="changeSong()">載入</button>
+    </div>
+
+    <div class="kkbox-container">
+        <iframe 
+            id="kkIframe"
+            src="https://widget.kkbox.com/v1/?id=SomsQ-0s1DbhbJT2AH&type=song&terr=TW&lang=TC&autoplay=false" 
+            allow="autoplay; encrypted-media" 
+            style="width:100%; height:300px; border:none;">
+        </iframe>
+    </div>
+
+    <div class="metro-panel">
+        <div class="leds" id="leds"></div>
+        <div class="bpm-display" id="bpmVal">100</div>
+        <div class="bpm-sub">BPM</div>
+        
+        <input type="range" id="bpmRange" min="40" max="220" value="100">
+
+        <div class="control-row">
+            <select id="timeSig">
+                <option value="4">4/4 拍</option>
+                <option value="3">3/4 拍</option>
+                <option value="2">2/4 拍</option>
+            </select>
+            <select id="subdiv">
+                <option value="1">四分音符</option>
+                <option value="2">八分音符</option>
+            </select>
+        </div>
+
+        <button id="btnStart" class="big-btn">開始節拍器</button>
+    </div>
+
+    <div class="hint">
+        支援網址格式：<br>
+        1. play.kkbox.com (網頁播放器)<br>
+        2. www.kkbox.com (分享連結)
+    </div>
+
+<script>
+    // --- 1. 強化版換歌邏輯 (修正 Bug) ---
+    function changeSong() {
+        // 取得並清除前後空白
+        let url = document.getElementById('kkLink').value.trim();
+        const iframe = document.getElementById('kkIframe');
+        
+        let id = "";
+        let type = "song"; // 預設
+
+        try {
+            // 先切掉問號後面的參數 (?autoplay=true 等等)
+            const cleanUrl = url.split('?')[0];
+
+            // 判斷網址特徵
+            if (cleanUrl.includes("/track/")) {
+                // play.kkbox.com 的歌曲格式
+                type = "song"; // Widget 只認得 song，不認得 track，所以要轉換
+                id = cleanUrl.split("/track/")[1].split("/")[0];
+            } else if (cleanUrl.includes("/song/")) {
+                // www.kkbox.com 的歌曲格式
+                type = "song";
+                id = cleanUrl.split("/song/")[1].split("/")[0];
+            } else if (cleanUrl.includes("/playlist/")) {
+                // 歌單
+                type = "playlist";
+                id = cleanUrl.split("/playlist/")[1].split("/")[0];
+            } else if (cleanUrl.includes("/album/")) {
+                // 專輯
+                type = "album";
+                id = cleanUrl.split("/album/")[1].split("/")[0];
+            } else {
+                alert("無法識別網址！請確認您複製的是 KKBOX 連結。");
+                return;
+            }
+
+            // 更新 Iframe
+            if (id) {
+                iframe.src = `https://widget.kkbox.com/v1/?id=${id}&type=${type}&terr=TW&lang=TC&autoplay=false`;
+                console.log("Loaded:", type, id);
+            }
+        } catch (e) {
+            console.error(e);
+            alert("網址解析錯誤，請檢查連結是否完整。");
+        }
+    }
+
+    // --- 2. 節拍器邏輯 ---
+    let audioCtx = null;
+    let isRunning = false;
+    let timerID;
+    let nextNoteTime = 0.0;
+    let tempo = 100;
+    let beatsPerBar = 4;
+    let subdivision = 1;
+    let currentStep = 0;
+
+    const bpmRange = document.getElementById('bpmRange');
+    const bpmVal = document.getElementById('bpmVal');
+    const ledContainer = document.getElementById('leds');
+    const btnStart = document.getElementById('btnStart');
+
+    updateLeds();
+
+    bpmRange.addEventListener('input', (e) => { tempo = parseInt(e.target.value); bpmVal.innerText = tempo; });
+    document.getElementById('timeSig').addEventListener('change', (e) => { beatsPerBar = parseInt(e.target.value); currentStep = 0; updateLeds(); });
+    document.getElementById('subdiv').addEventListener('change', (e) => { subdivision = parseInt(e.target.value); currentStep = 0; });
+
+    btnStart.addEventListener('click', () => {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        isRunning = !isRunning;
+        if (isRunning) {
+            currentStep = 0; nextNoteTime = audioCtx.currentTime + 0.1; scheduler();
+            btnStart.innerText = "停止"; btnStart.classList.add('active');
+        } else {
+            clearTimeout(timerID); btnStart.innerText = "開始節拍器"; btnStart.classList.remove('active'); resetLeds();
+        }
+    });
+
+    function updateLeds() {
+        ledContainer.innerHTML = '';
+        for(let i=0; i<beatsPerBar; i++) {
+            let d = document.createElement('div'); d.className = 'led'; ledContainer.appendChild(d);
+        }
+    }
+    function resetLeds() { document.querySelectorAll('.led').forEach(l => l.className = 'led'); }
+    function scheduler() {
+        while (nextNoteTime < audioCtx.currentTime + 0.1) { scheduleNote(currentStep, nextNoteTime); nextNote(); }
+        timerID = setTimeout(scheduler, 25);
+    }
+    function nextNote() {
+        const secondsPerBeat = 60.0 / tempo; nextNoteTime += (secondsPerBeat / subdivision); currentStep++;
+        if (currentStep >= beatsPerBar * subdivision) currentStep = 0;
+    }
+    function scheduleNote(step, time) {
+        const isMainBeat = (step % subdivision === 0);
+        if (isMainBeat) {
+            const beatIndex = step / subdivision;
+            const isAccent = (beatIndex === 0);
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            osc.frequency.value = isAccent ? 1200 : 800;
+            gain.gain.value = isAccent ? 1.0 : 0.6;
+            osc.start(time); osc.stop(time + 0.05);
+            setTimeout(() => {
+                const leds = document.querySelectorAll('.led'); leds.forEach(l => l.className = 'led');
+                if (leds[beatIndex]) leds[beatIndex].classList.add(isAccent ? 'high' : 'low');
+            }, (time - audioCtx.currentTime) * 1000);
+        }
+    }
+</script>
+</body>
+</html>
