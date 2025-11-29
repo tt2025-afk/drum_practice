@@ -3,204 +3,272 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>KKBOX 練團室 (登入修復版)</title>
+    <title>純粹練鼓室 (穩定修復版)</title>
     <style>
         :root {
-            --kk-blue: #00a0e9;
             --bg: #121212;
-            --panel: #222;
-            --text: #fff;
-            --accent: #00d2d3;
+            --surface: #1e1e1e;
+            --primary: #00d2d3;
+            --accent: #ff6b6b;
+            --text: #e0e0e0;
+            --gold: #feca57;
+            --blue: #54a0ff;
         }
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
             background-color: var(--bg);
             color: var(--text);
             margin: 0;
-            padding: 10px;
+            padding: 0;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            touch-action: manipulation; 
+            overflow: hidden;
+            touch-action: manipulation;
+            user-select: none;
         }
 
-        /* 網址輸入區 */
-        .search-box {
-            width: 100%;
-            display: flex; gap: 5px; margin-bottom: 10px;
+        /* 載入遮罩 */
+        #loadingOverlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: #000; z-index: 100;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
         }
-        input[type="text"] {
-            flex: 1; padding: 10px; border-radius: 5px; border: 1px solid #555;
-            background: #222; color: white; font-size: 16px;
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #333;
+            border-top: 4px solid var(--primary); border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 20px;
         }
-        .btn-action {
-            background: #444; color: white; border: none;
-            padding: 0 15px; border-radius: 5px; font-weight: bold; white-space: nowrap;
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .load-text { color: var(--primary); font-weight: bold; }
+        .start-hint { display: none; margin-top: 20px; padding: 10px 20px; background: var(--primary); color: #000; border-radius: 20px; cursor: pointer; font-weight: bold;}
+
+        /* 上方：節拍器 */
+        .header-panel {
+            flex: 0 0 auto; background: var(--surface); padding: 15px;
+            border-bottom: 2px solid #333; display: flex; flex-direction: column; gap: 10px; z-index: 10;
         }
-        .btn-load { background: var(--kk-blue); }
-
-        /* 登入修復區 (新功能) */
-        .login-fix-area {
-            width: 100%;
-            background: #2a1b1b;
-            border: 1px solid #ff4757;
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            box-sizing: border-box;
+        .metro-controls { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+        .bpm-wrapper { display: flex; align-items: center; gap: 10px; background: #000; padding: 5px 15px; border-radius: 30px; border: 1px solid #444; }
+        .bpm-display { font-size: 1.5rem; font-weight: bold; color: var(--primary); font-family: monospace; width: 50px; text-align: center; }
+        .btn-adjust { background: #333; color: #fff; border: none; width: 30px; height: 30px; border-radius: 50%; font-size: 1.2rem; cursor: pointer; }
+        
+        .btn-metro {
+            flex: 1; background: #333; color: #ccc; border: 1px solid #555; padding: 10px;
+            border-radius: 8px; font-weight: bold; font-size: 1rem; cursor: pointer;
         }
-        .login-desc { font-size: 0.85rem; color: #ffcccb; }
-        .btn-login-fix {
-            background: #ff4757; color: white; border: none; padding: 8px 12px;
-            border-radius: 5px; font-size: 0.85rem; font-weight: bold;
+        .btn-metro.active { background: var(--primary); color: #000; box-shadow: 0 0 15px rgba(0, 210, 211, 0.4); }
+
+        .beat-bar { display: flex; gap: 5px; height: 6px; width: 100%; }
+        .beat-dot { flex: 1; background: #333; border-radius: 3px; transition: background 0.05s; }
+        .beat-dot.on { background: var(--accent); box-shadow: 0 0 10px var(--accent); }
+        .beat-dot.sub { background: var(--primary); box-shadow: 0 0 8px var(--primary); }
+
+        /* 下方：鼓盤 */
+        .drum-grid {
+            flex: 1; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(3, 1fr);
+            gap: 8px; padding: 10px; box-sizing: border-box;
         }
-
-        /* KKBOX 區塊 */
-        .kkbox-container {
-            width: 100%; margin-bottom: 15px; border-radius: 12px;
-            overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
-            background: #000; min-height: 250px;
+        .pad {
+            position: relative; background: #2d3436; border-radius: 12px;
+            border: 2px solid rgba(255,255,255,0.05); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; font-weight: bold; font-size: 1.1rem;
+            box-shadow: 0 4px 0 rgba(0,0,0,0.4); transition: transform 0.05s;
+            text-shadow: 1px 1px 2px #000; color: rgba(255,255,255,0.9);
         }
+        .pad span { font-size: 0.75rem; color: rgba(255,255,255,0.4); margin-top: 5px; }
+        .pad:active, .pad.hit { transform: translateY(4px); box-shadow: none; filter: brightness(1.4); }
 
-        /* 節拍器面板 */
-        .metro-panel {
-            width: 100%; background: var(--panel); padding: 15px;
-            border-radius: 15px; box-sizing: border-box;
-            border-top: 3px solid var(--accent);
-        }
+        .c-gold { background: var(--gold); color: #443e00; }
+        .c-blue { background: var(--blue); color: #000; }
+        .c-red  { background: var(--accent); color: #fff; }
+        .c-gray { background: #636e72; color: #fff; }
+        .c-pink { background: #fd79a8; color: #000; }
 
-        /* LED */
-        .leds { display: flex; justify-content: center; gap: 10px; margin-bottom: 15px; height: 15px; }
-        .led { width: 15px; height: 15px; border-radius: 50%; background: #444; transition: 0.05s; }
-        .led.high { background: #ff4757; box-shadow: 0 0 10px #ff4757; transform: scale(1.3); }
-        .led.low { background: #2ed573; box-shadow: 0 0 10px #2ed573; }
-
-        /* BPM & Controls */
-        .bpm-display { text-align: center; font-size: 3.5rem; font-weight: 800; color: var(--text); line-height: 1; }
-        .bpm-sub { font-size: 1rem; color: var(--accent); text-align: center; margin-bottom: 10px; }
-        input[type=range] { width: 100%; height: 40px; margin: 10px 0; }
-        .control-row { display: flex; gap: 10px; margin-bottom: 10px; }
-        select { flex: 1; padding: 10px; font-size: 1rem; background: #333; color: white; border: 1px solid #555; border-radius: 8px; }
-
-        /* 微調按鈕 */
-        .nudge-controls { display: flex; gap: 10px; margin-bottom: 15px; background: #333; padding: 10px; border-radius: 10px; }
-        .btn-nudge { flex: 1; padding: 10px; border: 1px solid #ff9f43; border-radius: 8px; background: #444; color: #ff9f43; font-weight: bold; }
-        .btn-nudge:active { background: #ff9f43; color: #000; }
-
-        .big-btn { width: 100%; padding: 20px; font-size: 1.5rem; font-weight: bold; border: none; border-radius: 12px; background: #444; color: #ccc; transition: 0.2s; }
-        .big-btn.active { background: var(--kk-blue); color: white; box-shadow: 0 5px 20px rgba(0, 160, 233, 0.5); }
+        @media (max-width: 600px) { .pad span { display: none; } }
     </style>
 </head>
 <body>
 
-    <div class="search-box">
-        <input type="text" id="kkLink" placeholder="貼上 KKBOX 連結..." value="https://play.kkbox.com/track/SomsQ-0s1DbhbJT2AH">
-        <button class="btn-action btn-load" onclick="changeSong()">載入</button>
+    <div id="loadingOverlay">
+        <div class="spinner" id="spinner"></div>
+        <div class="load-text" id="loadText">下載音效中...</div>
+        <div class="start-hint" id="startBtn">點擊這裡開始</div>
     </div>
 
-    <div class="login-fix-area">
-        <div class="login-desc">如果無法在播放器內登入，請點右邊按鈕 →</div>
-        <button class="btn-login-fix" onclick="externalLogin()">1. 開新視窗登入</button>
-    </div>
-
-    <div class="kkbox-container">
-        <iframe id="kkIframe"
-            src="https://widget.kkbox.com/v1/?id=SomsQ-0s1DbhbJT2AH&type=song&terr=TW&lang=TC&autoplay=false" 
-            allow="autoplay; encrypted-media; clipboard-write; popups; popups-to-escape-sandbox; storage-access-by-user-activation"
-            sandbox="allow-forms allow-presentation allow-same-origin allow-scripts allow-modals allow-popups allow-popups-to-escape-sandbox allow-storage-access-by-user-activation"
-            style="width:100%; height:300px; border:none;">
-        </iframe>
-    </div>
-
-    <div class="metro-panel">
-        <div class="leds" id="leds"></div>
-        <div class="bpm-display" id="bpmVal">100</div>
-        <div class="bpm-sub">BPM</div>
-        
-        <input type="range" id="bpmRange" min="40" max="220" value="100">
-
-        <div class="nudge-controls">
-            <button class="btn-nudge" onclick="nudge(-0.05)">⏪ 微調 (-0.05)</button>
-            <button class="btn-nudge" onclick="nudge(0.05)">⏩ 微調 (+0.05)</button>
+    <div class="header-panel">
+        <div class="metro-controls">
+            <div class="bpm-wrapper">
+                <button class="btn-adjust" onclick="changeBpm(-5)">-</button>
+                <div class="bpm-display" id="bpmVal">100</div>
+                <button class="btn-adjust" onclick="changeBpm(5)">+</button>
+            </div>
+            <button class="btn-metro" id="metroBtn">▶ 開啟節拍器</button>
         </div>
-
-        <div class="control-row">
-            <select id="timeSig"><option value="4">4/4</option><option value="3">3/4</option></select>
-            <select id="subdiv"><option value="1">四分音符</option><option value="2">八分音符</option></select>
+        <div class="beat-bar">
+            <div class="beat-dot" id="dot0"></div><div class="beat-dot" id="dot1"></div>
+            <div class="beat-dot" id="dot2"></div><div class="beat-dot" id="dot3"></div>
         </div>
-
-        <button id="btnStart" class="big-btn">開始節拍器</button>
     </div>
+
+    <div class="drum-grid">
+        <div class="pad c-gold" data-sound="crash" data-key="r">Crash<span>R</span></div>
+        <div class="pad c-gold" data-sound="splash" data-key="t">Splash<span>T</span></div>
+        <div class="pad c-blue" data-sound="tom1" data-key="y">Tom 1<span>Y</span></div>
+        <div class="pad c-gold" data-sound="ride" data-key="u">Ride<span>U</span></div>
+
+        <div class="pad c-pink" data-sound="openhat" data-key="d">Open HH<span>D</span></div>
+        <div class="pad c-blue" data-sound="tom2" data-key="f">Tom 2<span>F</span></div>
+        <div class="pad c-blue" data-sound="floor" data-key="h">Floor<span>H</span></div>
+        <div class="pad c-gold" data-sound="ride" data-key="j">Bell<span>J</span></div>
+
+        <div class="pad c-pink" data-sound="hihat" data-key="c">Hi-Hat<span>C</span></div>
+        <div class="pad c-red"  data-sound="snare" data-key="v" style="grid-column: span 2">SNARE<span>V</span></div>
+        <div class="pad c-gray" data-sound="kick" data-key="space">KICK<span>Space</span></div>
+    </div>
+
+    <audio id="base-kick" src="https://raw.githubusercontent.com/ArunMichaelDsouza/javascript-30-course/master/src/01-javascript-drum-kit/sounds/kick.wav" preload="auto"></audio>
+    <audio id="base-snare" src="https://raw.githubusercontent.com/ArunMichaelDsouza/javascript-30-course/master/src/01-javascript-drum-kit/sounds/snare.wav" preload="auto"></audio>
+    <audio id="base-hihat" src="https://raw.githubusercontent.com/ArunMichaelDsouza/javascript-30-course/master/src/01-javascript-drum-kit/sounds/hihat.wav" preload="auto"></audio>
+    <audio id="base-openhat" src="https://raw.githubusercontent.com/ArunMichaelDsouza/javascript-30-course/master/src/01-javascript-drum-kit/sounds/openhat.wav" preload="auto"></audio>
+    <audio id="base-tom" src="https://raw.githubusercontent.com/ArunMichaelDsouza/javascript-30-course/master/src/01-javascript-drum-kit/sounds/tom.wav" preload="auto"></audio>
+    <audio id="base-crash" src="https://raw.githubusercontent.com/ArunMichaelDsouza/javascript-30-course/master/src/01-javascript-drum-kit/sounds/boom.wav" preload="auto"></audio>
+    <audio id="base-ride" src="https://raw.githubusercontent.com/ArunMichaelDsouza/javascript-30-course/master/src/01-javascript-drum-kit/sounds/ride.wav" preload="auto"></audio>
 
 <script>
-    // --- 登入修復邏輯 ---
-    function externalLogin() {
-        // 開啟一個新的視窗，導向 KKBOX Widget 所在的網域進行登入
-        // 這樣可以避開 iframe 的限制
-        const win = window.open("https://widget.kkbox.com/v1/?id=SomsQ-0s1DbhbJT2AH&type=song", "_blank");
+    // --- 1. 音效系統 (變調重用技術) ---
+    const sounds = {
+        kick: { el: document.getElementById('base-kick'), rate: 1.0 },
+        snare: { el: document.getElementById('base-snare'), rate: 1.0 },
+        hihat: { el: document.getElementById('base-hihat'), rate: 1.0 },
+        openhat: { el: document.getElementById('base-openhat'), rate: 1.0 },
+        // Tom 1: 原音
+        tom1: { el: document.getElementById('base-tom'), rate: 1.0 },
+        // Tom 2: 借用 Tom 1，變慢(降調) 0.8 倍
+        tom2: { el: document.getElementById('base-tom'), rate: 0.8 },
+        // Floor: 借用 Tom 1，變慢(降調) 0.6 倍
+        floor: { el: document.getElementById('base-tom'), rate: 0.6 },
         
-        alert("請在彈出的新視窗中完成登入。\n\n登入成功並看到完整版播放器後，請「關閉該視窗」並回到這裡，按一下「載入」重新整理！");
-    }
-
-    // --- 換歌邏輯 ---
-    function changeSong() {
-        let url = document.getElementById('kkLink').value.trim();
-        const iframe = document.getElementById('kkIframe');
-        let id = "", type = "song";
-        try {
-            const cleanUrl = url.split('?')[0];
-            if (cleanUrl.includes("/track/")) { type = "song"; id = cleanUrl.split("/track/")[1].split("/")[0]; }
-            else if (cleanUrl.includes("/song/")) { type = "song"; id = cleanUrl.split("/song/")[1].split("/")[0]; }
-            else if (cleanUrl.includes("/playlist/")) { type = "playlist"; id = cleanUrl.split("/playlist/")[1].split("/")[0]; }
-            
-            if (id) {
-                // 強制重整 iframe 以讀取新的登入狀態
-                iframe.src = `https://widget.kkbox.com/v1/?id=${id}&type=${type}&terr=TW&lang=TC&autoplay=false&t=${new Date().getTime()}`;
-            }
-        } catch (e) { alert("網址錯誤"); }
-    }
-
-    // --- 節拍器邏輯 (同上) ---
-    let audioCtx = null, isRunning = false, timerID, nextNoteTime = 0.0, tempo = 100, beatsPerBar = 4, subdivision = 1, currentStep = 0;
-    const bpmRange = document.getElementById('bpmRange'), bpmVal = document.getElementById('bpmVal'), ledContainer = document.getElementById('leds'), btnStart = document.getElementById('btnStart');
-    
-    updateLeds();
-    bpmRange.addEventListener('input', (e) => { tempo = parseInt(e.target.value); bpmVal.innerText = tempo; });
-    document.getElementById('timeSig').addEventListener('change', (e) => { beatsPerBar = parseInt(e.target.value); currentStep = 0; updateLeds(); });
-    document.getElementById('subdiv').addEventListener('change', (e) => { subdivision = parseInt(e.target.value); currentStep = 0; });
-
-    window.nudge = function(amount) {
-        if (!isRunning) return;
-        nextNoteTime += amount;
-        const btn = event.currentTarget; btn.style.background = "#fff"; setTimeout(() => { btn.style.background = "#444"; }, 100);
+        crash: { el: document.getElementById('base-crash'), rate: 1.0 },
+        // Splash: 借用 Crash，變快(升調) 1.5 倍
+        splash: { el: document.getElementById('base-crash'), rate: 1.5 },
+        ride: { el: document.getElementById('base-ride'), rate: 1.0 }
     };
 
-    btnStart.addEventListener('click', () => {
-        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (audioCtx.state === 'suspended') audioCtx.resume();
-        isRunning = !isRunning;
-        if (isRunning) { currentStep = 0; nextNoteTime = audioCtx.currentTime + 0.1; scheduler(); btnStart.innerText = "停止"; btnStart.classList.add('active'); }
-        else { clearTimeout(timerID); btnStart.innerText = "開始節拍器"; btnStart.classList.remove('active'); resetLeds(); }
-    });
+    function playSound(name) {
+        const soundObj = sounds[name];
+        if (soundObj && soundObj.el) {
+            const audio = soundObj.el;
+            
+            // 重要：重置並設定速度
+            audio.currentTime = 0;
+            audio.playbackRate = soundObj.rate;
+            // 某些瀏覽器需要保留音高(preservesPitch)，打擊樂器建議關閉以獲得更自然的變調效果
+            if(audio.preservesPitch !== undefined) audio.preservesPitch = false; 
 
-    function updateLeds() { ledContainer.innerHTML = ''; for(let i=0; i<beatsPerBar; i++) { let d = document.createElement('div'); d.className = 'led'; ledContainer.appendChild(d); }}
-    function resetLeds() { document.querySelectorAll('.led').forEach(l => l.className = 'led'); }
-    function scheduler() { while (nextNoteTime < audioCtx.currentTime + 0.1) { scheduleNote(currentStep, nextNoteTime); nextNote(); } timerID = setTimeout(scheduler, 25); }
-    function nextNote() { const secondsPerBeat = 60.0 / tempo; nextNoteTime += (secondsPerBeat / subdivision); currentStep++; if (currentStep >= beatsPerBar * subdivision) currentStep = 0; }
-    function scheduleNote(step, time) {
-        const isMainBeat = (step % subdivision === 0);
-        if (isMainBeat) {
-            const beatIndex = step / subdivision; const isAccent = (beatIndex === 0);
-            const osc = audioCtx.createOscillator(); const gain = audioCtx.createGain();
-            osc.connect(gain); gain.connect(audioCtx.destination);
-            osc.frequency.value = isAccent ? 1200 : 800; gain.gain.value = isAccent ? 1.0 : 0.6;
-            osc.start(time); osc.stop(time + 0.05);
-            setTimeout(() => { const leds = document.querySelectorAll('.led'); leds.forEach(l => l.className = 'led'); if (leds[beatIndex]) leds[beatIndex].classList.add(isAccent ? 'high' : 'low'); }, (time - audioCtx.currentTime) * 1000);
+            const playPromise = audio.play();
+            if (playPromise !== undefined) {
+                playPromise.catch(error => { console.log("Play error:", error); });
+            }
         }
     }
+
+    // --- 2. 載入檢測 ---
+    window.addEventListener('load', () => {
+        // 簡單延遲確保 Audio 元素準備好
+        setTimeout(() => {
+            document.getElementById('spinner').style.display = 'none';
+            document.getElementById('loadText').style.display = 'none';
+            const btn = document.getElementById('startBtn');
+            btn.style.display = 'block';
+            
+            btn.addEventListener('click', () => {
+                // 解鎖 AudioContext (iOS 必須)
+                if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if(audioCtx.state === 'suspended') audioCtx.resume();
+                
+                // 嘗試播放靜音以解鎖 HTML Audio 元素
+                Object.values(sounds).forEach(s => {
+                    s.el.muted = true;
+                    s.el.play().then(() => { s.el.pause(); s.el.currentTime = 0; s.el.muted = false; }).catch(()=>{});
+                });
+                
+                document.getElementById('loadingOverlay').style.display = 'none';
+            });
+        }, 1000);
+    });
+
+    // --- 3. 觸發事件 ---
+    document.querySelectorAll('.pad').forEach(pad => {
+        const trigger = (e) => {
+            e.preventDefault(); 
+            playSound(pad.dataset.sound);
+            pad.classList.add('hit');
+            setTimeout(() => pad.classList.remove('hit'), 80);
+        };
+        pad.addEventListener('touchstart', trigger, {passive: false});
+        pad.addEventListener('mousedown', trigger);
+    });
+
+    document.addEventListener('keydown', (e) => {
+        const key = e.key.toLowerCase();
+        const selector = key === ' ' ? '[data-key="space"]' : `[data-key="${key}"]`;
+        const pad = document.querySelector(selector);
+        if (pad) {
+            playSound(pad.dataset.sound);
+            pad.classList.add('hit');
+            setTimeout(() => pad.classList.remove('hit'), 80);
+        }
+    });
+
+    // --- 4. 節拍器 (同前) ---
+    let audioCtx = null;
+    let isMetroRunning = false;
+    let tempo = 100;
+    let nextNoteTime = 0.0;
+    let timerID = null;
+    let beatCount = 0;
+    const bpmVal = document.getElementById('bpmVal');
+    const metroBtn = document.getElementById('metroBtn');
+    const dots = [0,1,2,3].map(i => document.getElementById('dot'+i));
+
+    function changeBpm(n) { tempo = Math.max(30, Math.min(250, tempo + n)); bpmVal.innerText = tempo; }
+
+    function scheduleNote(beat, time) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.frequency.value = beat === 0 ? 1200 : 800;
+        gain.gain.value = beat === 0 ? 0.8 : 0.4;
+        osc.start(time); osc.stop(time + 0.05);
+
+        setTimeout(() => {
+            dots.forEach(d => d.className = 'beat-dot');
+            dots[beat].classList.add(beat === 0 ? 'on' : 'sub');
+        }, (time - audioCtx.currentTime) * 1000);
+    }
+
+    function scheduler() {
+        while (nextNoteTime < audioCtx.currentTime + 0.1) {
+            scheduleNote(beatCount, nextNoteTime);
+            nextNoteTime += 60.0 / tempo;
+            beatCount = (beatCount + 1) % 4;
+        }
+        timerID = setTimeout(scheduler, 25);
+    }
+
+    metroBtn.addEventListener('click', () => {
+        if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        if(audioCtx.state === 'suspended') audioCtx.resume();
+        isMetroRunning = !isMetroRunning;
+        if(isMetroRunning) {
+            beatCount = 0; nextNoteTime = audioCtx.currentTime + 0.05; scheduler();
+            metroBtn.classList.add('active'); metroBtn.innerText = "⏹ 停止";
+        } else {
+            clearTimeout(timerID); metroBtn.classList.remove('active'); metroBtn.innerText = "▶ 開始";
+            dots.forEach(d => d.className = 'beat-dot');
+        }
+    });
 </script>
 </body>
 </html>
